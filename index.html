@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Interactivo de Ventilación Pulmonar</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        oxigeno: '#3b82f6', // Azul para O2
+                        carbono: '#ef4444', // Rojo para CO2
+                        pulmon: '#f87171',
+                        pulmonDark: '#dc2626',
+                        diafragma: '#f59e0b',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        .glow-blue {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        }
+        .glow-red {
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 md:p-6">
+
+    <!-- Header / Créditos -->
+    <header class="max-w-4xl w-full mx-auto mb-4 flex flex-col md:flex-row justify-between items-center bg-slate-800/80 p-4 rounded-xl border border-slate-700 shadow-lg">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
+                🫁 Simulador de Ventilación Pulmonar
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">
+                Visualización interactiva del intercambio gaseoso ($\text{O}_2$ azul / $\text{CO}_2$ rojo)
+            </p>
+        </div>
+        <div class="mt-3 md:mt-0 text-right bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-700/50">
+            <span class="text-xs text-slate-400 block">Desarrollado por:</span>
+            <span class="text-sm font-semibold text-sky-400">Alfredo Belandria</span>
+        </div>
+    </header>
+
+    <!-- Contenedor Principal -->
+    <main class="max-w-4xl w-full mx-auto flex-1 flex flex-col items-center gap-4">
+
+        <!-- Modos Predefinidos y Estado -->
+        <div class="w-full flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Modos:</span>
+                <button onclick="setPreset('lenta')" id="btn-lenta" class="px-3 py-1 text-xs font-semibold rounded-lg bg-slate-700 hover:bg-slate-600 transition text-slate-200">
+                    🐢 Lenta (8 rpm)
+                </button>
+                <button onclick="setPreset('reposo')" id="btn-reposo" class="px-3 py-1 text-xs font-semibold rounded-lg bg-sky-600 text-white transition glow-blue">
+                    🧘 Reposo (12 rpm)
+                </button>
+                <button onclick="setPreset('ejercicio')" id="btn-ejercicio" class="px-3 py-1 text-xs font-semibold rounded-lg bg-slate-700 hover:bg-slate-600 transition text-slate-200">
+                    🏃 Ejercicio (28 rpm)
+                </button>
+            </div>
+            
+            <div class="flex items-center gap-3 text-xs">
+                <span id="rate-display" class="bg-slate-900 px-2.5 py-1 rounded-md text-slate-300 border border-slate-700">
+                    Frecuencia: <b class="text-sky-400">12 rpm</b>
+                </span>
+                <span id="phase-badge" class="px-2.5 py-1 rounded-md font-bold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    INHALACIÓN
+                </span>
+            </div>
+        </div>
+
+        <!-- Cuadro con Canvas Ajustado -->
+        <div class="w-full bg-slate-900 rounded-2xl border border-slate-700/80 p-2 shadow-2xl relative overflow-hidden flex justify-center items-center">
+            <canvas id="respiratoryCanvas" width="600" height="420" class="max-w-full h-auto block"></canvas>
+        </div>
+
+        <!-- Explicación Fisiológica Breve (Debajo de la animación) -->
+        <div class="w-full bg-slate-800/90 rounded-xl p-4 border border-slate-700 shadow-md">
+            <h2 class="text-sm font-bold text-sky-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                ⚡ Proceso Fisiológico en Vivo
+            </h2>
+            <p id="dynamic-explanation" class="text-xs md:text-sm text-slate-200 leading-relaxed min-h-[40px]">
+                Cargando explicación fisiológica...
+            </p>
+        </div>
+
+        <!-- Explicación Fisiológica de las Estructuras (Parte Final) -->
+        <div class="w-full mt-4 bg-slate-800/40 rounded-xl p-5 border border-slate-700/60">
+            <h2 class="text-base font-bold text-slate-200 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
+                🫁 Estructuras del Sistema Respiratorio
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs text-slate-300">
+                <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+                    <h3 class="font-bold text-sky-400 text-sm mb-1">👃 Vías Nasales / Boca</h3>
+                    <p>Entrada del aire al cuerpo. Humedecen, calientan y filtran el aire inhalado antes de su paso a la tráquea.</p>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+                    <h3 class="font-bold text-sky-400 text-sm mb-1">🫁 Tráquea y Bronquios</h3>
+                    <p>Conducto tubular reforzado por cartílago que conduce el aire desde la garganta bifurcándose hacia ambos pulmones.</p>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+                    <h3 class="font-bold text-sky-400 text-sm mb-1">🎈 Pulmones</h3>
+                    <p>Órganos esponjosos y elásticos que se expanden al inhalar aire y se contraen al exhalar expulsando gases residuales.</p>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+                    <h3 class="font-bold text-sky-400 text-sm mb-1">🎯 Diafragma</h3>
+                    <p>Músculo principal de la respiración. Se contrae y baja al inhalar, y se relaja subiendo en domo al exhalar.</p>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+                    <h3 class="font-bold text-sky-400 text-sm mb-1">🔬 Alvéolos y Hematosis</h3>
+                    <p>Sacos microscópicos donde el oxígeno ($\text{O}_2$) pasa a la sangre y el dióxido de carbono ($\text{CO}_2$) es expulsado.</p>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50">
+                    <h3 class="font-bold text-sky-400 text-sm mb-1">🔵🔴 Partículas ($\text{O}_2$ vs $\text{CO}_2$)</h3>
+                    <p>Las partículas <span class="text-blue-400 font-semibold">azules ($\text{O}_2$)</span> entran durante la inhalación; las partículas <span class="text-red-400 font-semibold">rojas ($\text{CO}_2$)</span> salen durante la exhalación.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="max-w-4xl w-full mx-auto mt-6 text-center text-xs text-slate-500 py-2">
+        Simulador de Ventilación Humana &copy; 2026 — Creado por Alfredo Belandria.
+    </footer>
+
+    <!-- Lógica del Simulador -->
+    <script>
+        const canvas = document.getElementById('respiratoryCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Configuración y variables del simulador
+        let bpm = 12; // Frecuencia respiratoria inicial
+        let volume = 500; // ml
+        let phase = 0; // 0 a 2*PI para ciclo senoidal
+        let isPaused = false;
+        let particles = [];
+
+        // Explicación dinámica y elementos UI
+        const dynamicExplanation = document.getElementById('dynamic-explanation');
+        const phaseBadge = document.getElementById('phase-badge');
+        const rateDisplay = document.getElementById('rate-display');
+
+        // Ajustes de Presets
+        function setPreset(type) {
+            document.querySelectorAll('[id^="btn-"]').forEach(btn => {
+                btn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-slate-700 hover:bg-slate-600 transition text-slate-200";
+            });
+
+            if (type === 'lenta') {
+                bpm = 8; volume = 400;
+                document.getElementById('btn-lenta').className = "px-3 py-1 text-xs font-semibold rounded-lg bg-sky-600 text-white transition glow-blue";
+            } else if (type === 'reposo') {
+                bpm = 12; volume = 500;
+                document.getElementById('btn-reposo').className = "px-3 py-1 text-xs font-semibold rounded-lg bg-sky-600 text-white transition glow-blue";
+            } else if (type === 'ejercicio') {
+                bpm = 28; volume = 850;
+                document.getElementById('btn-ejercicio').className = "px-3 py-1 text-xs font-semibold rounded-lg bg-sky-600 text-white transition glow-blue";
+            }
+            rateDisplay.innerHTML = `Frecuencia: <b class="text-sky-400">${bpm} rpm</b>`;
+        }
+
+        // Sistema de Partículas
+        class Particle {
+            constructor(type) {
+                this.type = type; // 'O2' o 'CO2'
+                this.reset();
+            }
+
+            reset() {
+                this.progress = 0;
+                this.speed = 0.008 + Math.random() * 0.006;
+                this.side = Math.random() < 0.5 ? 'left' : 'right';
+                this.size = Math.random() * 2 + 2.5;
+            }
+
+            update(isInhaling) {
+                if (this.type === 'O2' && isInhaling) {
+                    this.progress += this.speed * (bpm / 12);
+                    if (this.progress > 1) this.progress = 1;
+                } else if (this.type === 'CO2' && !isInhaling) {
+                    this.progress += this.speed * (bpm / 12);
+                    if (this.progress > 1) this.progress = 1;
+                }
+            }
+
+            draw() {
+                let x, y;
+                // Coordenadas fijas
+                const noseX = 300, noseY = 40;
+                const bifurcationX = 300, bifurcationY = 140;
+                const lungLeftX = 230, lungLeftY = 220;
+                const lungRightX = 370, lungRightY = 220;
+
+                const targetX = this.side === 'left' ? lungLeftX : lungRightX;
+                const targetY = this.side === 'left' ? lungLeftY : lungRightY;
+
+                let p = this.progress;
+
+                if (this.type === 'O2') {
+                    // De Nariz -> Bifurcación -> Pulmón
+                    if (p < 0.4) {
+                        let t = p / 0.4;
+                        x = noseX;
+                        y = noseY + t * (bifurcationY - noseY);
+                    } else {
+                        let t = (p - 0.4) / 0.6;
+                        x = bifurcationX + t * (targetX - bifurcationX);
+                        y = bifurcationY + t * (targetY - bifurcationY);
+                    }
+                } else {
+                    // De Pulmón -> Bifurcación -> Nariz
+                    if (p < 0.6) {
+                        let t = p / 0.6;
+                        x = targetX + t * (bifurcationX - targetX);
+                        y = targetY + t * (bifurcationY - targetY);
+                    } else {
+                        let t = (p - 0.6) / 0.4;
+                        x = bifurcationX;
+                        y = bifurcationY + t * (noseY - bifurcationY);
+                    }
+                }
+
+                ctx.beginPath();
+                ctx.arc(x + (Math.random()-0.5)*8, y + (Math.random()-0.5)*8, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.type === 'O2' ? '#3b82f6' : '#ef4444';
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = this.type === 'O2' ? '#3b82f6' : '#ef4444';
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        // Crear pool de partículas
+        for (let i = 0; i < 40; i++) particles.push(new Particle('O2'));
+        for (let i = 0; i < 40; i++) particles.push(new Particle('CO2'));
+
+        // Renderizado del Dibujo
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Calcular fase respiratoria: sin(phase) -> 1 = Inhalación máx, -1 = Exhalación máx
+            const sinVal = Math.sin(phase);
+            const isInhaling = sinVal > 0;
+            const expansion = (sinVal + 1) / 2; // Normalize 0 a 1
+
+            // Actualizar Badges y Explicación Fisiológica Breve
+            if (isInhaling) {
+                phaseBadge.innerText = "INHALACIÓN (Entrada O₂)";
+                phaseBadge.className = "px-2.5 py-1 rounded-md font-bold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30";
+                
+                dynamicExplanation.innerHTML = `
+                    En la <b class="text-blue-400">Inhalación</b>, el diafragma se contrae y baja. El tórax se expande y la presión interna disminuye, succionando oxígeno (<span class="text-blue-400 font-bold">O₂ azul</span>) hacia los alvéolos. 
+                    ${bpm > 20 ? '<span class="text-amber-400 block mt-1">⚠️ Ritmo elevado (Ejercicio): La frecuencia alta acelera la ventilación para suplir la demanda metabólica de oxígeno.</span>' : ''}
+                `;
+            } else {
+                phaseBadge.innerText = "EXHALACIÓN (Expulsión CO₂)";
+                phaseBadge.className = "px-2.5 py-1 rounded-md font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30";
+                
+                dynamicExplanation.innerHTML = `
+                    En la <b class="text-red-400">Exhalación</b>, el diafragma se relaja y sube en forma de domo. La presión pulmonar aumenta y se expulsa el dióxido de carbono (<span class="text-red-400 font-bold">CO₂ rojo</span>) acumulado de los tejidos.
+                    ${bpm > 20 ? '<span class="text-amber-400 block mt-1">⚠️ Ritmo elevado (Ejercicio): Se agiliza la evacuación acelerada del CO₂ para evitar acidosis.</span>' : ''}
+                `;
+            }
+
+            // 1. Dibujar Vías Aéreas (Tráquea y Bronquios)
+            ctx.lineWidth = 18;
+            ctx.strokeStyle = '#475569';
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // Tráquea principal
+            ctx.beginPath();
+            ctx.moveTo(300, 40);
+            ctx.lineTo(300, 140);
+            ctx.stroke();
+
+            // Anillos de la tráquea
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#94a3b8';
+            for (let y = 55; y < 130; y += 10) {
+                ctx.beginPath();
+                ctx.moveTo(291, y);
+                ctx.lineTo(309, y);
+                ctx.stroke();
+            }
+
+            // Bronquios (Izquierdo y Derecho)
+            ctx.lineWidth = 12;
+            ctx.strokeStyle = '#475569';
+            ctx.beginPath();
+            ctx.moveTo(300, 140);
+            ctx.lineTo(230, 200);
+            ctx.moveTo(300, 140);
+            ctx.lineTo(370, 200);
+            ctx.stroke();
+
+            // Ramificaciones secundarias
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            // Izquierda
+            ctx.moveTo(230, 200); ctx.lineTo(200, 230);
+            ctx.moveTo(230, 200); ctx.lineTo(240, 250);
+            // Derecha
+            ctx.moveTo(370, 200); ctx.lineTo(400, 230);
+            ctx.moveTo(370, 200); ctx.lineTo(360, 250);
+            ctx.stroke();
+
+            // 2. Dibujar Pulmones (Aumentados de Tamaño para Llenar el Cuadro)
+            const baseRadiusX = 85;
+            const baseRadiusY = 115;
+            const scale = 1 + expansion * (volume / 2200); // Variación de volumen ampliada
+
+            const lungRadiusX = baseRadiusX * scale;
+            const lungRadiusY = baseRadiusY * scale;
+
+            // Pulmón Izquierdo
+            ctx.save();
+            ctx.beginPath();
+            ctx.ellipse(210 - (expansion * 12), 220 + (expansion * 5), lungRadiusX, lungRadiusY, Math.PI / 16, 0, Math.PI * 2);
+            ctx.fillStyle = isInhaling ? '#f87171' : '#e11d48';
+            ctx.globalAlpha = 0.85;
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#fca5a5';
+            ctx.stroke();
+            ctx.restore();
+
+            // Pulmón Derecho
+            ctx.save();
+            ctx.beginPath();
+            ctx.ellipse(390 + (expansion * 12), 220 + (expansion * 5), lungRadiusX, lungRadiusY, -Math.PI / 16, 0, Math.PI * 2);
+            ctx.fillStyle = isInhaling ? '#f87171' : '#e11d48';
+            ctx.globalAlpha = 0.85;
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#fca5a5';
+            ctx.stroke();
+            ctx.restore();
+
+            // 3. Diafragma Dinámico
+            const diaphragmY = 370 + (expansion * 18); // Se aplane al bajar (inhalación) y sube al exhalar
+            ctx.beginPath();
+            ctx.moveTo(100, 380);
+            ctx.quadraticCurveTo(300, diaphragmY - (expansion * 25), 500, 380);
+            ctx.lineWidth = 14;
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillStyle = '#fbbf24';
+            ctx.fillText('DIAFRAGMA', 265, diaphragmY + 20);
+
+            // 4. Zoom Alveolar / Hematosis (Esquina Inferior Derecha)
+            const zoomX = 490, zoomY = 110, zoomR = 55;
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(zoomX, zoomY, zoomR, 0, Math.PI * 2);
+            ctx.fillStyle = '#1e293b';
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.stroke();
+            ctx.clip();
+
+            // Fondo zoom
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(zoomX - zoomR, zoomY - zoomR, zoomR * 2, zoomR * 2);
+
+            // Alveolos microscópicos
+            ctx.beginPath();
+            ctx.arc(zoomX - 15, zoomY - 10, 22, 0, Math.PI * 2);
+            ctx.arc(zoomX + 15, zoomY + 5, 18, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(248, 113, 113, 0.4)';
+            ctx.fill();
+            ctx.strokeStyle = '#fca5a5';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Capilar sanguíneo
+            ctx.beginPath();
+            ctx.moveTo(zoomX - 50, zoomY + 30);
+            ctx.bezierCurveTo(zoomX - 10, zoomY, zoomX + 10, zoomY + 40, zoomX + 50, zoomY + 10);
+            ctx.lineWidth = 8;
+            ctx.strokeStyle = isInhaling ? '#2563eb' : '#dc2626';
+            ctx.stroke();
+
+            // Título Zoom
+            ctx.restore();
+            ctx.beginPath();
+            ctx.arc(zoomX, zoomY, zoomR, 0, Math.PI * 2);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.stroke();
+
+            ctx.font = 'bold 10px sans-serif';
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillText('ZOOM: ALVÉOLOS', zoomX - 42, zoomY - 60);
+
+            // 5. Renderizar Partículas
+            particles.forEach(p => {
+                if ((p.type === 'O2' && isInhaling) || (p.type === 'CO2' && !isInhaling)) {
+                    p.update(isInhaling);
+                    p.draw();
+                } else {
+                    p.reset();
+                }
+            });
+        }
+
+        // Bucle Principal de Animación
+        function loop() {
+            if (!isPaused) {
+                // Incremento de la fase proporcional a la frecuencia respiratoria (bpm)
+                phase += (bpm / 60) * 0.05;
+                if (phase > Math.PI * 2) phase -= Mat
